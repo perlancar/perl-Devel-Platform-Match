@@ -13,8 +13,9 @@ use Scalar::Util qw(looks_like_number);
 
 use Exporter qw(import);
 our @EXPORT_OK = qw(
-                       parse_platform_spec
                        match_platform
+                       match_platform_bool
+                       parse_platform_spec
                );
 
 our %SPEC;
@@ -368,12 +369,21 @@ sub match_platform {
     }];
 }
 
+sub match_platform_bool {
+    my $res = match_platform(@_);
+    $res->[0] == 200 && $res->[2] ? 1:0;
+}
+
 1;
 # ABSTRACT: Match platform information with platform specification
 
 =head1 SYNOPSIS
 
- use Devel::Platform::Match qw(match_platform parse_platform_spec);
+ use Devel::Platform::Match qw(
+     match_platform
+     match_platform_bool
+     parse_platform_spec
+ );
 
  # assuming we're on an Ubuntu Linux 20.04 64bit
  my $envres = match_platform("osflag=linux"); # -> [200, "OK", 1]
@@ -445,6 +455,17 @@ Then each clause will be tested. When the hash does not have the key specified
 in the clause, the test fails.
 
 Platform matches if all clauses pass.
+
+
+=head1 FUNCTIONS
+
+=head2 match_platform_bool
+
+Usage:
+
+ my $match = match_platform_bool($spec [ , $info [ , $quiet ] ]); # -> bool
+
+Just like L</match_platform> but return a simple boolean value.
 
 
 =head1 SEE ALSO
