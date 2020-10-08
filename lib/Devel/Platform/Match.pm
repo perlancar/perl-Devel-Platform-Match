@@ -371,6 +371,18 @@ sub match_platform {
 1;
 # ABSTRACT: Match platform information with platform specification
 
+=head1 SYNOPSIS
+
+ use Devel::Platform::Match qw(match_platform parse_platform_spec);
+
+ # assuming we're on an Ubuntu Linux 20.04 64bit
+ my $envres = match_platform("osflag=linux"); # -> [200, "OK", 1]
+ my $envres = match_platform("linux32");      # -> [200, "OK", 0] # linux32 is alias for "osflag=linux archname=x86"; archname doesn't match
+ my $envres = match_platform("win64");        # -> [200, "OK", 0] # win64 is alias for "osflag=Win32 archname=x86_64"; osflag doesn't match
+ my $envres = match_platform("osflag=linux oslabel=~/Debian|Ubuntu|Mint/"); # -> [200, "OK", 1]
+ my $envres = match_platform("osflag=linux, oslabel=~/Debian|Ubuntu|Mint/, osvers >= 21"); # -> [200, "OK", 0] ; # osvers doesn't match
+
+
 =head1 DESCRIPTION
 
 This module lets you match platform information with platform specification.
