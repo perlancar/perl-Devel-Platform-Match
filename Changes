@@ -1,3 +1,10 @@
+0.004   2020-10-08  Released-By: PERLANCAR; Urgency: medium
+
+	- Add function: match_platform_bool.
+
+        - Fix 32bit aliases.
+
+
 0.003   2020-10-08  Released-By: PERLANCAR; Urgency: low
 
 	- No functional changes.
