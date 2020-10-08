@@ -155,12 +155,14 @@ our $RE =
   }x;
 
 our %aliases = (
-    "linux-x86"    => "osflag=linux archname=x86",
+    "linux32"      => "osflag=linux archname=i686",
+    "linux64"      => "osflag=linux archname=x86_64",
+
+    "linux-i386"   => "osflag=linux archname=i386",
+    "linux-i686"   => "osflag=linux archname=i686",
     "linux-amd64"  => "osflag=linux archname=x86_64",
     "linux-x86_64" => "osflag=linux archname=x86_64",
-    "linux32"      => "osflag=linux archname=x86",
-    "linux64"      => "osflag=linux archname=x86_64",
-    "win32"        => "osflag=Win32 archname=x86",
+    "win32"        => "osflag=Win32 archname=i686", # or i386?
     "win64"        => "osflag=Win32 archname=x86_64",
     "all"          => "",
 );
@@ -184,8 +186,8 @@ $SPEC{parse_platform_spec} = {
     examples => [
         {
             summary => "coercion of alias",
-            args => {spec=>"linux-x86"},
-            result => [["osflag","=","linux"], ["arch","=", "x86"]],
+            args => {spec=>"linux32"},
+            result => [["osflag","=","linux"], ["archname","=", "i686"]],
             test => 0, #args_as array not supported yet?
         },
         {
@@ -420,12 +422,13 @@ A platform specification with zero clauses (C<"">) will match all platforms.
 For convenience, some aliases will be coerced into a proper platform
 specification first:
 
-    "linux-x86"    => "osflag=linux archname=x86",
+    "linux32"      => "osflag=linux archname=i686",
+    "linux64"      => "osflag=linux archname=x86_64",
+    "linux-i386"   => "osflag=linux archname=i386",
+    "linux-i686"   => "osflag=linux archname=i686",
     "linux-amd64"  => "osflag=linux archname=x86_64",
     "linux-x86_64" => "osflag=linux archname=x86_64",
-    "linux32"      => "osflag=linux archname=x86",
-    "linux64"      => "osflag=linux archname=x86_64",
-    "win32"        => "osflag=Win32 archname=x86",
+    "win32"        => "osflag=Win32 archname=i686",
     "win64"        => "osflag=Win32 archname=x86_64",
     "all"          => "",
 
@@ -457,7 +460,7 @@ in the clause, the test fails.
 Platform matches if all clauses pass.
 
 
-=head1 FUNCTIONS
+=head1 append:FUNCTIONS
 
 =head2 match_platform_bool
 
