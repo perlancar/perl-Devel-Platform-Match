@@ -397,9 +397,12 @@ Platform specification is a whitespace- (or comma-) separated list of clauses.
 
 Each clause is of the form: C<key> C<op> C<literal>.
 
-Key is any key of the hash returned by L<Devel::Platform::Info>.
+C<key> is any key of the hash returned by L<Devel::Platform::Info>.
 
 C<op> is operator supported by L<Data::CSel>.
+
+C<literal> is a bareword number or word, or a quoted string. See Data::CSel for
+more information.
 
 A platform specification with zero clauses (C<"">) will match all platforms.
 
@@ -422,9 +425,10 @@ Some examples of platform specifications:
  linux32                       [["osflag","=","linux"], ["archname","=","x86"]]        coerced to "osflag=linux archname=x86" before parsing
  oslabel=Ubuntu                [["oslabel","=","Ubuntu"]]
  osflag=linux oslabel=Ubuntu   [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]
+ osflag=linux, oslabel=Ubuntu  [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]      either whitespace or comma is okay as separator
  oslabel=~/Debian|Ubuntu/      [["oslabel","=~",qr/Debian|Ubuntu/]]
  is32bit=1                     [["is32bit","=",1]]                                     any 32bit platform
- is32bit is true               [["is32bit","=",1]]                                     any 64bit platform
+ is32bit is true               [["is32bit","is",1]]                                    any 64bit platform
 
 
 =head1 PLATFORM MATCHING
