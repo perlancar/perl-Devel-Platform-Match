@@ -418,17 +418,21 @@ specification first:
     "win64"        => "osflag=Win32 archname=x86_64",
     "all"          => "",
 
-Some examples of platform specifications:
+Some examples of valid and invalid platform specifications:
 
- specification                 parse result                                            note
- -------------                 ------------                                            ----
- linux32                       [["osflag","=","linux"], ["archname","=","x86"]]        coerced to "osflag=linux archname=x86" before parsing
- oslabel=Ubuntu                [["oslabel","=","Ubuntu"]]
- osflag=linux oslabel=Ubuntu   [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]
- osflag=linux, oslabel=Ubuntu  [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]      either whitespace or comma is okay as separator
- oslabel=~/Debian|Ubuntu/      [["oslabel","=~",qr/Debian|Ubuntu/]]
- is32bit=1                     [["is32bit","=",1]]                                     any 32bit platform
- is32bit is true               [["is32bit","is",1]]                                    any 64bit platform
+ specification                  parse result                                            note
+ -------------                  ------------                                            ----
+ linux32                        [["osflag","=","linux"], ["archname","=","x86"]]        coerced to "osflag=linux archname=x86" before parsing
+ oslabel=Ubuntu                 [["oslabel","=","Ubuntu"]]
+ osflag=linux oslabel=Ubuntu    [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]
+ osflag=linux, oslabel=Ubuntu   [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]      either whitespace or comma is okay as separator
+ oslabel=~/Debian|Ubuntu/       [["oslabel","=~",qr/Debian|Ubuntu/]]
+ is32bit=1                      [["is32bit","=",1]]                                     any 32bit platform
+ is32bit is true                [["is32bit","is",1]]                                    any 64bit platform
+ "" (empty string)              []                                                      no clauses, will match any platform info
+ foo                            undef                                                   invalid syntax, unknown alias
+ oslabel=Ubuntu,oslabel=Debian  [["osflag","=","Ubuntu"], ["osflag","=","Debian"]]      valid, but won't match any platform
+ archname=amd64                 [["archname","=","amd64"]]                              Will match platform info {archname=>"x86_64"} because of normalization
 
 
 =head1 PLATFORM MATCHING
