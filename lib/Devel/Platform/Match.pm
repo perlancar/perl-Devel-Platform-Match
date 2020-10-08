@@ -1,0 +1,421 @@
+package Devel::Platform::Match;
+
+# AUTHORITY
+# DATE
+# DIST
+# VERSION
+
+use 5.0100000;
+use strict;
+use warnings;
+
+use Scalar::Util qw(looks_like_number);
+
+use Exporter qw(import);
+our @EXPORT_OK = qw(
+                       parse_platform_spec
+                       match_platform
+               );
+
+our %SPEC;
+our $_val;
+our $RE =
+    qr{
+          (?&CLAUSES) (?{ $_val = $^R->[1] })
+
+          (?(DEFINE)
+              (?<CLAUSES>
+                  (?{ [$^R, []] })
+                  (?&CLAUSE) # [[$^R, []], $clause]
+                  (?{ [$^R->[0][0], [$^R->[1]]] })
+                  (?:
+                      (?:\s*,\s* | \s+)
+                      (?&CLAUSE)
+                      (?{
+                          push @{$^R->[0][1]}, $^R->[1];
+                          $^R->[0];
+                      })
+                  )*
+                  \s*
+              )
+
+              (?<CLAUSE>
+                  (?{ [$^R, []] }) # to be filled as [$^R, [$leftop, $op, $literal]]
+                  ((?&LEFTOP)) (?{ push @{ $^R->[1] }, $^N; $^R }) # [$^R, [$^R, $leftop]]
+                  (?{
+                      #use Data::Dmp; say "D:setting leftop: ", dmp $^R;
+                      push @{ $^R->[1] }, $^R->[0];
+                      $^R;
+                  })
+
+                  (
+                      \s*(?:=~|!~)\s* |
+                      \s*(?:!=|<>|>=?|<=?|==?)\s* |
+                      \s++(?:eq|ne|lt|gt|le|ge)\s++ |
+                      \s+(?:isnt|is)\s+
+                  )
+                  (?{
+                      my $op = $^N;
+                      $op =~ s/^\s+//; $op =~ s/\s+$//;
+                      $^R->[1][1] = $op;
+                      $^R;
+                  })
+
+                  (?:
+                      (?&LITERAL) # [[$^R0, [$attr, $op]], $literal]
+                      (?{
+                          push @{ $^R->[0][1] }, $^R->[1];
+                          $^R->[0];
+                      })
+                  |
+                      (\w[^\s\]]*) # allow unquoted string
+                      (?{
+                          $^R->[1][2] = $^N;
+                          $^R;
+                      })
+                  )
+              )
+
+              (?<LEFTOP>
+                  [A-Za-z_][A-Za-z0-9_]*
+              )
+
+              (?<LITERAL>
+                  (?&LITERAL_NUMBER)
+              |
+                  (?&LITERAL_STRING_DQUOTE)
+              |
+                  (?&LITERAL_STRING_SQUOTE)
+              |
+                  (?&LITERAL_REGEX)
+              |
+                  true (?{ [$^R, 1] })
+              |
+                  false (?{ [$^R, 0] })
+              |
+                  null (?{ [$^R, undef] })
+              )
+
+              (?<LITERAL_NUMBER>
+                  (
+                      -?
+                      (?: 0 | [1-9]\d* )
+                      (?: \. \d+ )?
+                      (?: [eE] [-+]? \d+ )?
+                  )
+                  (?{ [$^R, 0+$^N] })
+              )
+
+              (?<LITERAL_STRING_DQUOTE>
+                  (
+                      "
+                      (?:
+                          [^\\"]+
+                      |
+                          \\ [0-7]{1,3}
+                      |
+                          \\ x [0-9A-Fa-f]{1,2}
+                      |
+                          \\ ["\\'tnrfbae]
+                      )*
+                      "
+                  )
+                  (?{ [$^R, eval $^N] })
+              )
+
+              (?<LITERAL_STRING_SQUOTE>
+                  (
+                      '
+                      (?:
+                          [^\\']+
+                      |
+                          \\ .
+                      )*
+                      '
+                  )
+                  (?{ [$^R, eval $^N] })
+              )
+
+              (?<LITERAL_REGEX>
+                  (
+                      /
+                      (?:
+                          [^/\\]+
+                      |
+                          \\ .
+                      )*
+                      /
+                      [ims]*
+                  )
+                  (?{ my $re = eval "qr$^N"; die if $@; [$^R, $re] })
+              )
+
+          ) # DEFINE
+  }x;
+
+our %aliases = (
+    "linux-x86"    => "osflag=linux arch=x86",
+    "linux-amd64"  => "osflag=linux arch=x86_64",
+    "linux-x86_64" => "osflag=linux arch=x86_64",
+    "linux32"      => "osflag=linux arch=x86_64",
+    "linux64"      => "osflag=linux arch=x86_64",
+    "win32"        => "osflag=Win32 arch=x86",
+    "win64"        => "osflag=Win32 arch=x86_64",
+    "all"          => "",
+);
+for (keys %aliases) { $aliases{$_} = parse_platform_spec( $aliases{$_} ) or die "BUG: alias does not parse: '$aliases{$_}'" }
+
+$SPEC{parse_platform_spec} = {
+    v => 1.1,
+    summary => 'Parse platform specification string into array of clauses',
+    args_as => 'array',
+    args => {
+        spec => {
+            schema => 'str*',
+            req => 1,
+            pos => 0,
+        },
+    },
+    result_naked => 1,
+    result => {
+        schema => 'array',
+    },
+    examples => [
+        {
+            summary => "coercion of alias",
+            args => {spec=>"linux-x86"},
+            result => [["osflag","=","linux"], ["arch","=", "x86"]],
+            test => 0, #args_as array not supported yet?
+        },
+        {
+            args => {spec=>"osflag!=linux"},
+            result => [["osflag","!=","linux"]],
+            test => 0, #args_as array not supported yet?
+        },
+        {
+            args => {spec=>"foo"},
+            result => undef,
+            test => 0, #args_as array not supported yet?
+        },
+    ],
+};
+sub parse_platform_spec {
+    state $re = qr{\A\s*$RE\s*\z};
+
+    local $_ = shift;
+    return [] if $_ eq '';
+    return $aliases{$_} if $aliases{$_};
+
+    local $^R;
+    local $_val;
+    if ($_ =~ $re) {
+        return $_val;
+    } else {
+        return undef;
+    }
+}
+
+$SPEC{match_platform} = {
+    v => 1.1,
+    summary => 'Match platform information against platform spec',
+    args => {
+        spec => {
+            schema => 'str*',
+            req => 1,
+            pos => 0,
+        },
+        info => {
+            summary => 'Hash(ref) of information returned by Devel::Platform::Info\'s get_info()',
+            description => <<'_',
+
+If not specified, will retrieve from <pm:Devel::Platform::Info>.
+
+_
+            schema => 'hash*',
+            pos => 1,
+        },
+    },
+    description => <<'_',
+
+See section "PLATFORM MATCHING" for details on how matching is done.
+
+_
+    examples => [
+        {
+            args => {info=>{osflag=>"linux", oslabel=>"Debian"}, spec=>"osflag=linux"},
+            naked_result => 1,
+            test => 0, #args_as array not supported yet?
+        },
+    ],
+};
+sub match_platform {
+    my ($spec, $info, $opts) = @_;
+    $opts //= {};
+
+    unless ($info) {
+        require Devel::Platform::Info;
+        $info = Devel::Platform::Info->new->get_info;
+    }
+
+    my $parsed_spec;
+    eval {
+        $parsed_spec = parse_platform_spec($spec);
+    };
+    return [500, "Can't parse platform spec '$spec': $@"] if $@;
+    return [412, "Invalid syntax in platform spec '$spec'"] unless $parsed_spec;
+
+    my $match = 1;
+    my $mismatch_reason;
+    for my $clause (@{ $parsed_spec }) {
+        no warnings 'numeric', 'uninitialized';
+
+        my ($key, $op, $op_val) = @$clause;
+        unless (exists $info->{$key}) {
+            $match = 0;
+            $mismatch_reason = "No key '$key'";
+            last;
+        }
+        my $info_val = $info->{$key};
+
+        # XXX support version (dotted) comparison?
+
+        if ($op eq '=' || $op eq '==') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val == $op_val"; last } unless $info_val == $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val eq $op_val"; last } unless $info_val eq $op_val;
+            }
+        } elsif ($op eq 'eq') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val eq $op_val"; last } unless $info_val eq $op_val;
+        } elsif ($op eq '!=' || $op eq '<>') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val != $op_val"; last } unless $info_val != $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val ne $op_val"; last } unless $info_val ne $op_val;
+            }
+        } elsif ($op eq 'ne') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val ne $op_val"; last } unless $info_val ne $op_val;
+        } elsif ($op eq '>') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val > $op_val"; last } unless $info_val >  $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val gt $op_val"; last } unless $info_val gt $op_val;
+            }
+        } elsif ($op eq 'gt') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val gt $op_val"; last } unless $info_val gt $op_val;
+        } elsif ($op eq '>=') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val >= $op_val"; last } unless $info_val >=  $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val != $op_val"; last } unless $info_val ge $op_val;
+            }
+        } elsif ($op eq 'ge') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val ge $op_val"; last } unless $info_val ge $op_val;
+        } elsif ($op eq '<') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val < $op_val"; last } unless $info_val <  $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val lt $op_val"; last } unless $info_val lt $op_val;
+            }
+        } elsif ($op eq 'lt') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val lt $op_val"; last } unless $info_val lt $op_val;
+        } elsif ($op eq '<=') {
+            if (looks_like_number($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val <= $op_val"; last } unless $info_val <= $op_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val le $op_val"; last } unless $info_val le $op_val;
+            }
+        } elsif ($op eq 'le') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val le $op_val"; last } unless $info_val le $op_val;
+        } elsif ($op eq 'is') {
+            if (!defined($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key undef is undef"; last } unless !defined($info_val);
+            } elsif ($op_val) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val is true"; last } unless $info_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val is false"; last } unless !$info_val;
+            }
+        } elsif ($op eq 'isnt') {
+            if (!defined($op_val)) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val isnt undef"; last } unless defined($info_val);
+            } elsif ($op_val) {
+                do { $match=0; $mismatch_reason = "fails $key $info_val isnt false"; last } unless !$info_val;
+            } else {
+                do { $match=0; $mismatch_reason = "fails $key $info_val isnt true"; last } unless $info_val;
+            }
+        } elsif ($op eq '=~') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val =~ $op_val"; last } unless $info_val =~ $op_val;
+        } elsif ($op eq '!~') {
+            do { $match=0; $mismatch_reason = "fails $key $info_val !~ $op_val"; last } unless $info_val !~ $op_val;
+        } else {
+            die "BUG: Unsupported operator '$op' in attr_selector";
+        }
+    } # for clause
+
+    [200, "OK", $match, {
+        'cmdline.result' => $opts->{quiet} ? "" : ($match ? "Platform matches" : "Platform does NOT match ($mismatch_reason)"),
+        'cmdline.exit_code' => $match ? 0:1,
+    }];
+}
+
+1;
+# ABSTRACT: Match platform information with platform specification
+
+=head1 DESCRIPTION
+
+This module lets you match platform information with platform specification.
+
+
+=head1 PLATFORM SPECIFICATION SYNTAX
+
+Platform specification syntax is modelled after CSS attribute selector (more
+specifically, L<Data::CSel>'s attribute selector).
+
+Platform specification is a whitespace- (or comma-) separated list of clauses.
+
+Each clause is of the form: C<key> C<op> C<literal>.
+
+Key is any key of the hash returned by L<Devel::Platform::Info>.
+
+C<op> is operator supported by L<Data::CSel>.
+
+A platform specification with zero clauses (C<"">) will match all platforms.
+
+For convenience, some aliases will be coerced into a proper platform
+specification first:
+
+    "linux-x86"    => "osflag=linux arch=x86",
+    "linux-amd64"  => "osflag=linux arch=x86_64",
+    "linux-x86_64" => "osflag=linux arch=x86_64",
+    "linux32"      => "osflag=linux arch=x86",
+    "linux64"      => "osflag=linux arch=x86_64",
+    "win32"        => "osflag=Win32 arch=x86",
+    "win64"        => "osflag=Win32 arch=x86_64",
+    "all"          => "",
+
+Some examples of platform specifications:
+
+ specification                 parse result                                            note
+ -------------                 ------------                                            ----
+ linux32                       [["osflag","=","linux"], ["arch","=","x86"]]            coerced to "osflag=linux arch=x86" before parsing
+ oslabel=Ubuntu                [["oslabel","=","Ubuntu"]]
+ osflag=linux oslabel=Ubuntu   [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]
+ oslabel=~/Debian|Ubuntu/      [["oslabel","=~",qr/Debian|Ubuntu/]]
+ is32bit=1                     [["is32bit","=",1]]                                     any 32bit platform
+ is32bit is true               [["is32bit","=",1]]                                     any 64bit platform
+
+
+=head1 PLATFORM MATCHING
+
+First, some normalization is performed on the info hash. For L<arch>, "amd64"
+will be coerced to "x86_64".
+
+Then each clause will be tested. When the hash does not have the key specified
+in the clause, the test fails.
+
+Platform matches if all clauses pass.
+
+
+=head1 SEE ALSO
+
+L<Devel::Platform::Info>
