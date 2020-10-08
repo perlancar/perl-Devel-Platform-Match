@@ -379,8 +379,9 @@ sub match_platform {
  my $envres = match_platform("osflag=linux"); # -> [200, "OK", 1]
  my $envres = match_platform("linux32");      # -> [200, "OK", 0] # linux32 is alias for "osflag=linux archname=x86"; archname doesn't match
  my $envres = match_platform("win64");        # -> [200, "OK", 0] # win64 is alias for "osflag=Win32 archname=x86_64"; osflag doesn't match
- my $envres = match_platform("osflag=linux oslabel=~/Debian|Ubuntu|Mint/"); # -> [200, "OK", 1]
- my $envres = match_platform("osflag=linux, oslabel=~/Debian|Ubuntu|Mint/, osvers >= 21"); # -> [200, "OK", 0] ; # osvers doesn't match
+ my $envres = match_platform("osflag=linux oslabel=~/Debian|Ubuntu|Mint/");                 # -> [200, "OK", 1]
+ my $envres = match_platform("osflag=linux, oslabel=~/Debian|Ubuntu|Mint/, osvers >= 21"); # -> [200, "OK", 0] # osvers doesn't match
+ my $envres = match_platform("foo");                                                       # -> [412, "Invalid syntax in platform spec 'foo'"]
 
 
 =head1 DESCRIPTION
