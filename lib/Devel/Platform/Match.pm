@@ -5,7 +5,7 @@ package Devel::Platform::Match;
 # DIST
 # VERSION
 
-use 5.0100000;
+use 5.010001;
 use strict;
 use warnings;
 
@@ -154,13 +154,13 @@ our $RE =
   }x;
 
 our %aliases = (
-    "linux-x86"    => "osflag=linux arch=x86",
-    "linux-amd64"  => "osflag=linux arch=x86_64",
-    "linux-x86_64" => "osflag=linux arch=x86_64",
-    "linux32"      => "osflag=linux arch=x86_64",
-    "linux64"      => "osflag=linux arch=x86_64",
-    "win32"        => "osflag=Win32 arch=x86",
-    "win64"        => "osflag=Win32 arch=x86_64",
+    "linux-x86"    => "osflag=linux archname=x86",
+    "linux-amd64"  => "osflag=linux archname=x86_64",
+    "linux-x86_64" => "osflag=linux archname=x86_64",
+    "linux32"      => "osflag=linux archname=x86",
+    "linux64"      => "osflag=linux archname=x86_64",
+    "win32"        => "osflag=Win32 archname=x86",
+    "win64"        => "osflag=Win32 archname=x86_64",
     "all"          => "",
 );
 for (keys %aliases) { $aliases{$_} = parse_platform_spec( $aliases{$_} ) or die "BUG: alias does not parse: '$aliases{$_}'" }
@@ -218,6 +218,7 @@ sub parse_platform_spec {
 $SPEC{match_platform} = {
     v => 1.1,
     summary => 'Match platform information against platform spec',
+    args_as => 'array',
     args => {
         spec => {
             schema => 'str*',
@@ -234,6 +235,10 @@ _
             schema => 'hash*',
             pos => 1,
         },
+        quiet => {
+            schema => 'bool*',
+            pos => 2,
+        },
     },
     description => <<'_',
 
@@ -249,8 +254,7 @@ _
     ],
 };
 sub match_platform {
-    my ($spec, $info, $opts) = @_;
-    $opts //= {};
+    my ($spec, $info, $quiet) = @_;
 
     unless ($info) {
         require Devel::Platform::Info;
@@ -276,6 +280,12 @@ sub match_platform {
             last;
         }
         my $info_val = $info->{$key};
+
+        # normalization
+        if ($key eq 'archname') {
+            if ($op_val   && $op_val   eq 'amd64') { $op_val   = 'x86_64' }
+            if ($info_val && $info_val eq 'amd64') { $info_val = 'x86_64' }
+        }
 
         # XXX support version (dotted) comparison?
 
@@ -353,7 +363,7 @@ sub match_platform {
     } # for clause
 
     [200, "OK", $match, {
-        'cmdline.result' => $opts->{quiet} ? "" : ($match ? "Platform matches" : "Platform does NOT match ($mismatch_reason)"),
+        'cmdline.result' => $quiet ? "" : ($match ? "Platform matches" : "Platform does NOT match ($mismatch_reason)"),
         'cmdline.exit_code' => $match ? 0:1,
     }];
 }
@@ -384,20 +394,20 @@ A platform specification with zero clauses (C<"">) will match all platforms.
 For convenience, some aliases will be coerced into a proper platform
 specification first:
 
-    "linux-x86"    => "osflag=linux arch=x86",
-    "linux-amd64"  => "osflag=linux arch=x86_64",
-    "linux-x86_64" => "osflag=linux arch=x86_64",
-    "linux32"      => "osflag=linux arch=x86",
-    "linux64"      => "osflag=linux arch=x86_64",
-    "win32"        => "osflag=Win32 arch=x86",
-    "win64"        => "osflag=Win32 arch=x86_64",
+    "linux-x86"    => "osflag=linux archname=x86",
+    "linux-amd64"  => "osflag=linux archname=x86_64",
+    "linux-x86_64" => "osflag=linux archname=x86_64",
+    "linux32"      => "osflag=linux archname=x86",
+    "linux64"      => "osflag=linux archname=x86_64",
+    "win32"        => "osflag=Win32 archname=x86",
+    "win64"        => "osflag=Win32 archname=x86_64",
     "all"          => "",
 
 Some examples of platform specifications:
 
  specification                 parse result                                            note
  -------------                 ------------                                            ----
- linux32                       [["osflag","=","linux"], ["arch","=","x86"]]            coerced to "osflag=linux arch=x86" before parsing
+ linux32                       [["osflag","=","linux"], ["archname","=","x86"]]        coerced to "osflag=linux archname=x86" before parsing
  oslabel=Ubuntu                [["oslabel","=","Ubuntu"]]
  osflag=linux oslabel=Ubuntu   [["osflag","=","linux"], ["oslabel","=","Ubuntu"]]
  oslabel=~/Debian|Ubuntu/      [["oslabel","=~",qr/Debian|Ubuntu/]]
@@ -407,8 +417,8 @@ Some examples of platform specifications:
 
 =head1 PLATFORM MATCHING
 
-First, some normalization is performed on the info hash. For L<arch>, "amd64"
-will be coerced to "x86_64".
+First, some normalization is performed on the info hash. For L<archname>,
+"amd64" will be coerced to "x86_64".
 
 Then each clause will be tested. When the hash does not have the key specified
 in the clause, the test fails.
@@ -419,3 +429,6 @@ Platform matches if all clauses pass.
 =head1 SEE ALSO
 
 L<Devel::Platform::Info>
+
+L<App::PlatformMatchUtils> provides CLI's for L</parse_platform_spec> and
+L</match_platform>.
