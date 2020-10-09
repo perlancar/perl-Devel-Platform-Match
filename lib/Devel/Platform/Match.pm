@@ -5,7 +5,7 @@ package Devel::Platform::Match;
 # DIST
 # VERSION
 
-use 5.010001;
+use 5.014;
 use strict;
 use warnings;
 
